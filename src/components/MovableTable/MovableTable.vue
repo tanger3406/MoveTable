@@ -2,6 +2,7 @@
   <table class="draggable-table">
     <thead>
       <tr>
+        <th>选择拖动</th>
         <th v-for="col in columns" :key="col">{{ col }}</th>
       </tr>
     </thead>
@@ -12,11 +13,10 @@
     >
       <template v-for="(row, index) in tableDataWithPlaceholder" :key="index">
         <tr v-if="row.姓名 === '' && row.年龄 === 0" class="placeholder">
-          <td :colspan="columns.length" style="text-align: center;">
+          <td :colspan="columns.length + 1" style="text-align: center;">
             拖动到这里
           </td>
         </tr>
-
         <tr
           v-else
           class="draggable-row"
@@ -25,6 +25,7 @@
           @dragstart="onDragStart($event)"
           @dragend="onDragEnd($event)"
         >
+          <td><input type="checkbox" :checked="selectedRows.includes(index)" @change="toggleRowSelection(index)"></td>
           <td v-for="col in columns" :key="col">
             {{ row[col] }}
           </td>
@@ -56,7 +57,9 @@ const {
   tbodyRef,
   onDragStart,
   onDragEnd,
-  onDrop
+  onDrop,
+  toggleRowSelection,
+  selectedRows
 } = moveTable(initialData)
 </script>
 

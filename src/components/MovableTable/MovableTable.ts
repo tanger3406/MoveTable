@@ -10,7 +10,7 @@ export interface TableRow {
 }
 
 interface DragState {
-  draggingIndex: number | null
+  draggingIndices: number[] | null
   targetIndex: number | null
   showPlaceholder: boolean
 }
@@ -18,18 +18,18 @@ interface DragState {
 export function moveTable(initialData: TableRow[]) {
   const tableData = ref<TableRow[]>([...initialData])
   const tbodyRef = ref<HTMLTableSectionElement | null>(null)
-
+  const selectedRows = ref<number[]>([])
   const columns = ['姓名', '年龄', '职位', '部门', '入职时间']
-
+  
   const dragState = ref<DragState>({
-    draggingIndex: null,
+    draggingIndices: null,
     targetIndex: null,
     showPlaceholder: false
   })
 
   const tableDataWithPlaceholder = computed(() => {
     if (
-      dragState.value.draggingIndex === null ||
+      dragState.value.draggingIndices === null ||
       dragState.value.targetIndex === null
     ) {
       return [...tableData.value]
@@ -37,13 +37,15 @@ export function moveTable(initialData: TableRow[]) {
 
     const copy = [...tableData.value]
     const insertIndex = Math.min(dragState.value.targetIndex!, copy.length)
-    copy.splice(insertIndex, 0, {
-      姓名: '',
-      年龄: 0,
-      职位: '',
-      部门: '',
-      入职时间: ''
-    })
+    for (let i = 0; i < dragState.value.draggingIndices.length; i++) {
+      copy.splice(insertIndex + i, 0, {
+        姓名: '',
+        年龄: 0,
+        职位: '',
+        部门: '',
+        入职时间: ''
+      })
+    }
 
     return copy
   })
@@ -55,39 +57,52 @@ export function moveTable(initialData: TableRow[]) {
   }, { deep: true })
 
   function onDragStart(e: DragEvent) {
-    const tr = (e.target as HTMLElement).closest('tr')
-    if (!tr || tr.dataset.index === undefined) return
+    if (selectedRows.value.length === 0) return
 
-    const index = parseInt(tr.dataset.index)
-    dragState.value.draggingIndex = index
-    e.dataTransfer?.setData('text/plain', index.toString())
-    tr.classList.add('dragging')
+    dragState.value.draggingIndices = selectedRows.value
+    e.dataTransfer?.setData('text/plain', selectedRows.value.join(','))
+
+    selectedRows.value.forEach(index => {
+      const tr = tbodyRef.value?.querySelector(`tr[data-index="${index}"]`)
+      if (tr) tr.classList.add('dragging')
+    })
   }
 
   function onDragEnd(e: DragEvent) {
-    const target = e.target as HTMLElement
-    const tr = target.closest('tr')
-    if (tr) tr.classList.remove('dragging')
+    if (dragState.value.draggingIndices) {
+      dragState.value.draggingIndices.forEach(index => {
+        const tr = tbodyRef.value?.querySelector(`tr[data-index="${index}"]`)
+        if (tr) tr.classList.remove('dragging')
+      })
+    }
 
-    dragState.value.draggingIndex = null
+    dragState.value.draggingIndices = null
     dragState.value.targetIndex = null
     dragState.value.showPlaceholder = false
+    selectedRows.value = []
   }
 
   function onDrop(e: DragEvent) {
-    const draggingIndex = dragState.value.draggingIndex
+    const draggingIndices = dragState.value.draggingIndices
     const targetIndex = dragState.value.targetIndex
 
-    if (draggingIndex === null || targetIndex === null) return
+    if (draggingIndices === null || targetIndex === null) return
 
-    const adjustedTargetIndex = targetIndex > draggingIndex
-    ? Math.min(targetIndex - 1, tableData.value.length)
-    : targetIndex
+    const adjustedTargetIndex = targetIndex > draggingIndices[0]
+      ? Math.min(targetIndex - draggingIndices.length, tableData.value.length)
+      : targetIndex
 
-    const movedItem = tableData.value.splice(draggingIndex, 1)[0]
-    tableData.value.splice(adjustedTargetIndex, 0, movedItem)
+    const movedItems = draggingIndices.map(index => tableData.value[index])
+    draggingIndices.sort((a, b) => b - a).forEach(index => {
+      tableData.value.splice(index, 1)
+    })
+
+    movedItems.reverse().forEach(item => {
+      tableData.value.splice(adjustedTargetIndex, 0, item)
+    })
 
     resetDragState()
+    resetAllRowStates()
     rowOrderChange()
   }
 
@@ -103,14 +118,14 @@ export function moveTable(initialData: TableRow[]) {
   }
 
   function resetDragState() {
-    dragState.value.draggingIndex = null
+    dragState.value.draggingIndices = null
     dragState.value.targetIndex = null
     dragState.value.showPlaceholder = false
   }
 
   function handleDragOver(e: DragEvent) {
     const tr = (e.target as HTMLElement).closest('tr')
-    if (!tr || dragState.value.draggingIndex === null) return
+    if (!tr || dragState.value.draggingIndices === null) return
 
     const rect = tr.getBoundingClientRect()
     const offsetY = e.clientY - rect.top
@@ -137,6 +152,22 @@ export function moveTable(initialData: TableRow[]) {
     if (e.relatedTarget === null || !tbodyRef.value?.contains(e.relatedTarget as Node)) {
       dragState.value.showPlaceholder = false
     }
+  }
+
+  function toggleRowSelection(index: number) {
+    if (selectedRows.value.includes(index)) {
+      selectedRows.value = selectedRows.value.filter(i => i !== index)
+    } else {
+      selectedRows.value.push(index)
+    }
+  }
+
+  function resetAllRowStates() {
+    if (!tbodyRef.value) return
+    const rows = tbodyRef.value.querySelectorAll('.draggable-row')
+    rows.forEach(row => {
+      row.classList.remove('dragging')
+    })
   }
 
   onMounted(() => {
@@ -166,5 +197,7 @@ export function moveTable(initialData: TableRow[]) {
     onDragStart,
     onDragEnd,
     onDrop,
+    toggleRowSelection,
+    selectedRows
   }
 }
