@@ -20,7 +20,7 @@ export function moveTable(initialData: TableRow[]) {
   const tbodyRef = ref<HTMLTableSectionElement | null>(null)
   const selectedRows = ref<number[]>([])
   const columns = ['姓名', '年龄', '职位', '部门', '入职时间']
-  
+
   const dragState = ref<DragState>({
     draggingIndices: null,
     targetIndex: null,
@@ -51,9 +51,9 @@ export function moveTable(initialData: TableRow[]) {
   })
 
   watch(tableData, () => {
-    setTimeout(() => {
+    queueMicrotask(() => {
       updateRowIndices()
-    }, 0)
+    })
   }, { deep: true })
 
   function onDragStart(e: DragEvent) {
@@ -89,8 +89,8 @@ export function moveTable(initialData: TableRow[]) {
     if (draggingIndices === null || targetIndex === null) return
 
     const adjustedTargetIndex = targetIndex > draggingIndices[0]
-      ? Math.min(targetIndex - draggingIndices.length, tableData.value.length)
-      : targetIndex
+    ? Math.min(targetIndex - draggingIndices.length, tableData.value.length)
+    : targetIndex
 
     const movedItems = draggingIndices.map(index => tableData.value[index])
     draggingIndices.sort((a, b) => b - a).forEach(index => {
@@ -110,10 +110,16 @@ export function moveTable(initialData: TableRow[]) {
     if (!tbodyRef.value) return
 
     const rows = tbodyRef.value.querySelectorAll('tr')
+    const updates: [HTMLElement, string][] = []
+
     rows.forEach((row, index) => {
       if (row instanceof HTMLElement) {
-        row.dataset.index = index.toString()
+        updates.push([row, index.toString()])
       }
+    })
+
+    updates.forEach(([row, index]) => {
+      row.dataset.index = index
     })
   }
 
@@ -123,13 +129,16 @@ export function moveTable(initialData: TableRow[]) {
     dragState.value.showPlaceholder = false
   }
 
+  let cachedRect: DOMRect | null = null
   function handleDragOver(e: DragEvent) {
     const tr = (e.target as HTMLElement).closest('tr')
     if (!tr || dragState.value.draggingIndices === null) return
 
-    const rect = tr.getBoundingClientRect()
-    const offsetY = e.clientY - rect.top
-    const middleY = rect.height / 2
+    if (!cachedRect) {
+      cachedRect = tr.getBoundingClientRect()
+    }
+    const offsetY = e.clientY - cachedRect.top
+    const middleY = cachedRect.height / 2
 
     const rows = Array.from(tbodyRef.value?.querySelectorAll('tr') || [])
     const targetIndex = rows.indexOf(tr)
@@ -151,6 +160,7 @@ export function moveTable(initialData: TableRow[]) {
 
     if (e.relatedTarget === null || !tbodyRef.value?.contains(e.relatedTarget as Node)) {
       dragState.value.showPlaceholder = false
+      cachedRect = null
     }
   }
 
