@@ -35,14 +35,8 @@ export function moveTable(initialData: TableRow[]) {
       return [...tableData.value]
     }
 
-    const draggingIndex = dragState.value.draggingIndex
-    if (draggingIndex === undefined || draggingIndex === dragState.value.targetIndex) {
-      return [...tableData.value]
-    }
-
     const copy = [...tableData.value]
-    const insertIndex = Math.min(dragState.value.targetIndex, copy.length)
-    
+    const insertIndex = Math.min(dragState.value.targetIndex!, copy.length)
     copy.splice(insertIndex, 0, {
       姓名: '',
       年龄: 0,
@@ -50,7 +44,7 @@ export function moveTable(initialData: TableRow[]) {
       部门: '',
       入职时间: ''
     })
-    
+
     return copy
   })
 
@@ -63,7 +57,7 @@ export function moveTable(initialData: TableRow[]) {
   function onDragStart(e: DragEvent) {
     const tr = (e.target as HTMLElement).closest('tr')
     if (!tr || tr.dataset.index === undefined) return
-    
+
     const index = parseInt(tr.dataset.index)
     dragState.value.draggingIndex = index
     e.dataTransfer?.setData('text/plain', index.toString())
@@ -74,7 +68,7 @@ export function moveTable(initialData: TableRow[]) {
     const target = e.target as HTMLElement
     const tr = target.closest('tr')
     if (tr) tr.classList.remove('dragging')
-    
+
     dragState.value.draggingIndex = null
     dragState.value.targetIndex = null
     dragState.value.showPlaceholder = false
@@ -86,20 +80,21 @@ export function moveTable(initialData: TableRow[]) {
 
     if (draggingIndex === null || targetIndex === null) return
 
-    const currentIndex = draggingIndex
-    if (currentIndex === -1 || currentIndex === targetIndex) return
+    const adjustedTargetIndex = targetIndex > draggingIndex
+    ? Math.min(targetIndex - 1, tableData.value.length)
+    : targetIndex
 
-    const movedItem = tableData.value.splice(currentIndex, 1)[0]
-    tableData.value.splice(targetIndex, 0, movedItem)
-    
+    const movedItem = tableData.value.splice(draggingIndex, 1)[0]
+    tableData.value.splice(adjustedTargetIndex, 0, movedItem)
+
     resetDragState()
-    roworderChange()
+    rowOrderChange()
   }
 
   function updateRowIndices() {
     if (!tbodyRef.value) return
-    
-    const rows = tbodyRef.value.querySelectorAll('tr:not(.placeholder)')
+
+    const rows = tbodyRef.value.querySelectorAll('tr')
     rows.forEach((row, index) => {
       if (row instanceof HTMLElement) {
         row.dataset.index = index.toString()
@@ -115,15 +110,15 @@ export function moveTable(initialData: TableRow[]) {
 
   function handleDragOver(e: DragEvent) {
     const tr = (e.target as HTMLElement).closest('tr')
-    if (!tr || dragState.value.draggingIndex === null || tr.classList.contains('placeholder')) return
+    if (!tr || dragState.value.draggingIndex === null) return
 
     const rect = tr.getBoundingClientRect()
     const offsetY = e.clientY - rect.top
     const middleY = rect.height / 2
-    
-    const rows = Array.from(tbodyRef.value?.querySelectorAll('tr:not(.placeholder)') || [])
+
+    const rows = Array.from(tbodyRef.value?.querySelectorAll('tr') || [])
     const targetIndex = rows.indexOf(tr)
-    
+
     if (targetIndex === -1) return
 
     if (offsetY < middleY) {
@@ -138,7 +133,7 @@ export function moveTable(initialData: TableRow[]) {
   function handleDragLeave(e: DragEvent) {
     const tr = (e.target as HTMLElement).closest('tr')
     if (!tr || tr.classList.contains('placeholder')) return
-    
+
     if (e.relatedTarget === null || !tbodyRef.value?.contains(e.relatedTarget as Node)) {
       dragState.value.showPlaceholder = false
     }
@@ -146,21 +141,21 @@ export function moveTable(initialData: TableRow[]) {
 
   onMounted(() => {
     if (!tbodyRef.value) return
-    
+
     tbodyRef.value.addEventListener('dragover', handleDragOver)
     tbodyRef.value.addEventListener('dragleave', handleDragLeave)
-    
+
     updateRowIndices()
   })
 
   onBeforeUnmount(() => {
     if (!tbodyRef.value) return
-    
+
     tbodyRef.value.removeEventListener('dragover', handleDragOver)
     tbodyRef.value.removeEventListener('dragleave', handleDragLeave)
   })
 
-  function roworderChange() {
+  function rowOrderChange() {
 
   }
 
