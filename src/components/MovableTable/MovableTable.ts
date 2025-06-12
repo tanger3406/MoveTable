@@ -56,11 +56,13 @@ export function moveTable(initialData: TableRow[]) {
     })
   }, { deep: true })
 
-  function onDragStart(e: DragEvent) {
+  function onDragStart(e: DragEvent | TouchEvent) {
     if (selectedRows.value.length === 0) return
 
     dragState.value.draggingIndices = selectedRows.value
-    e.dataTransfer?.setData('text/plain', selectedRows.value.join(','))
+    if (e instanceof DragEvent) {
+      e.dataTransfer?.setData('text/plain', selectedRows.value.join(','))
+    }
 
     selectedRows.value.forEach(index => {
       const tr = tbodyRef.value?.querySelector(`tr[data-index="${index}"]`)
@@ -68,7 +70,7 @@ export function moveTable(initialData: TableRow[]) {
     })
   }
 
-  function onDragEnd(e: DragEvent) {
+  function onDragEnd(e: DragEvent | TouchEvent) {
     if (dragState.value.draggingIndices) {
       dragState.value.draggingIndices.forEach(index => {
         const tr = tbodyRef.value?.querySelector(`tr[data-index="${index}"]`)
@@ -82,7 +84,7 @@ export function moveTable(initialData: TableRow[]) {
     selectedRows.value = []
   }
 
-  function onDrop(e: DragEvent) {
+  function onDrop(e: DragEvent | TouchEvent) {
     const draggingIndices = dragState.value.draggingIndices
     const targetIndex = dragState.value.targetIndex
 
@@ -130,14 +132,15 @@ export function moveTable(initialData: TableRow[]) {
   }
 
   let cachedRect: DOMRect | null = null
-  function handleDragOver(e: DragEvent) {
+  function handleDragOver(e: DragEvent | TouchEvent) {
+    const clientY = e instanceof DragEvent ? e.clientY : e.touches[0].clientY
     const tr = (e.target as HTMLElement).closest('tr')
     if (!tr || dragState.value.draggingIndices === null) return
 
     if (!cachedRect) {
       cachedRect = tr.getBoundingClientRect()
     }
-    const offsetY = e.clientY - cachedRect.top
+    const offsetY = clientY - cachedRect.top
     const middleY = cachedRect.height / 2
 
     const rows = Array.from(tbodyRef.value?.querySelectorAll('tr') || [])
@@ -154,11 +157,12 @@ export function moveTable(initialData: TableRow[]) {
     dragState.value.showPlaceholder = true
   }
 
-  function handleDragLeave(e: DragEvent) {
+  function handleDragLeave(e: DragEvent | TouchEvent) {
     const tr = (e.target as HTMLElement).closest('tr')
     if (!tr || tr.classList.contains('placeholder')) return
 
-    if (e.relatedTarget === null || !tbodyRef.value?.contains(e.relatedTarget as Node)) {
+    const relatedTarget = e instanceof DragEvent ? e.relatedTarget : e.touches[0].target
+    if (relatedTarget === null || !tbodyRef.value?.contains(relatedTarget as Node)) {
       dragState.value.showPlaceholder = false
       cachedRect = null
     }
@@ -185,6 +189,9 @@ export function moveTable(initialData: TableRow[]) {
 
     tbodyRef.value.addEventListener('dragover', handleDragOver)
     tbodyRef.value.addEventListener('dragleave', handleDragLeave)
+    tbodyRef.value.addEventListener('touchmove', handleDragOver)
+    tbodyRef.value.addEventListener('touchstart', onDragStart)
+    tbodyRef.value.addEventListener('touchend', onDragEnd)
 
     updateRowIndices()
   })
@@ -194,6 +201,9 @@ export function moveTable(initialData: TableRow[]) {
 
     tbodyRef.value.removeEventListener('dragover', handleDragOver)
     tbodyRef.value.removeEventListener('dragleave', handleDragLeave)
+    tbodyRef.value.removeEventListener('touchmove', handleDragOver)
+    tbodyRef.value.removeEventListener('touchstart', onDragStart)
+    tbodyRef.value.removeEventListener('touchend', onDragEnd)
   })
 
   function rowOrderChange() {
